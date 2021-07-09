@@ -741,6 +741,7 @@ class SyncClient(object):
 
             payload = self._decrypt_aead_sync(enc_ciphertext, enc_iv,
                                               encryption_key)
+
             content['payload'] = payload
         else:
             # array...
@@ -858,15 +859,22 @@ class SyncClient(object):
         if sort is not None and sort in ('newest', 'index', 'oldest'):
             params['sort'] = sort
 
-        parse = kwargs.pop('parse_data', False)
+        parse = kwargs.pop('parse_data', True)
 
         data = self._request('get', '/storage/%s' % collection.lower(),
                              params=params, **kwargs)
         if ignore_response or not data:
             return None
 
-        if parse:
-            data = json.loads(data)
+        if parse and collection.lower() != 'crypto':
+            tempdata = data.splitlines()
+            data = []
+            for line in tempdata:
+                if decrypt and self._is_encrypted_bso(line):
+                    line = json.loads(line)
+                    line = self._decrypt_bso(line)
+                    data.append(line)
+            data = json.dumps(data)
 
         if decrypt and self._is_encrypted_bso(data):
             # special case for crypto collection ...
